@@ -1,2 +1,2 @@
 # chirpy
-A web server sudy project
+A web server study project
