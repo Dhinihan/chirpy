@@ -14,13 +14,6 @@ func main() {
 			http.FileServer(http.Dir("./app")),
 		),
 	)
-	serverMux.Handle(
-		"/assets/",
-		http.StripPrefix(
-			"/assets",
-			http.FileServer(http.Dir("./assets/")),
-		),
-	)
 	serverMux.HandleFunc("/healthz", handleHealthZ)
 	server := http.Server{
 		Addr:    ":8080",
