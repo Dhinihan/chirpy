@@ -19,9 +19,9 @@ func main() {
 		"/app/",
 		cfg.middlewareMetricsInc(appHandler),
 	)
-	serverMux.HandleFunc("/healthz", handleHealthZ)
-	serverMux.HandleFunc("/metrics", cfg.handleMetrics)
-	serverMux.HandleFunc("/reset", cfg.handleReset)
+	serverMux.HandleFunc("GET /api/healthz", handleHealthZ)
+	serverMux.HandleFunc("GET /api/metrics", cfg.handleMetrics)
+	serverMux.HandleFunc("POST /api/reset", cfg.handleReset)
 	server := http.Server{
 		Addr:    ":8080",
 		Handler: serverMux,
