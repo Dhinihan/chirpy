@@ -40,8 +40,7 @@ func handleValidateChirp(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	application.RespondWithJson(w, 200, struct {
-		Valid bool `json:"valid"`
-	}{Valid: valid})
+		CleanedBody string `json:"cleaned_body"`
+	}{chirp.CleanMessage(requestData.Body)})
 	return
 }
-
