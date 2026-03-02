@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"net/http"
 	"sync/atomic"
+
+	"github.com/Dhinihan/chirpy/internal/database"
 )
 
 type apiConfig struct {
 	fileserverHits atomic.Int32
+	Db             *database.Queries
 }
 
-func NewApiConfig() *apiConfig {
-	return &apiConfig{}
+func NewApiConfig(db *database.Queries) *apiConfig {
+	return &apiConfig{Db: db}
 }
 
 func RegisterHandlers(cfg *apiConfig, serverMux *http.ServeMux) {

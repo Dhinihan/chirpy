@@ -1,20 +1,32 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/Dhinihan/chirpy/internal/application/admin"
 	"github.com/Dhinihan/chirpy/internal/application/api"
+	"github.com/Dhinihan/chirpy/internal/database"
+	"github.com/joho/godotenv"
+
+	_ "github.com/lib/pq"
 )
 
 func main() {
+	godotenv.Load()
 	appHandler := http.StripPrefix(
 		"/app",
 		http.FileServer(http.Dir("./app")),
 	)
 
-	cfg := admin.NewApiConfig()
+	dbURL := os.Getenv("DB_URL")
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		fmt.Printf("Erro ao abrir conexão com o banco de dados:\n%s", err.Error())
+	}
+	cfg := admin.NewApiConfig(database.New(db))
 
 	serverMux := http.NewServeMux()
 	serverMux.Handle(
@@ -27,8 +39,7 @@ func main() {
 		Addr:    ":8080",
 		Handler: serverMux,
 	}
-	err := server.ListenAndServe()
-	if err != nil {
+	if err := server.ListenAndServe(); err != nil {
 		fmt.Printf("Servidor parou por: \n%s\n", err.Error())
 	}
 }
