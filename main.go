@@ -33,7 +33,7 @@ func main() {
 		"/app/",
 		cfg.MiddlewareMetricsInc(appHandler),
 	)
-	api.RegisterHandlers(serverMux)
+	api.RegisterHandlers(cfg, serverMux)
 	admin.RegisterHandlers(cfg, serverMux)
 	server := http.Server{
 		Addr:    ":8080",

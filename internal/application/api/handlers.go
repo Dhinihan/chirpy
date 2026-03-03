@@ -2,16 +2,24 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/Dhinihan/chirpy/internal/application"
+	"github.com/Dhinihan/chirpy/internal/application/admin"
+	"github.com/Dhinihan/chirpy/internal/database"
 	"github.com/Dhinihan/chirpy/internal/model/chirp"
+	"github.com/Dhinihan/chirpy/internal/model/user"
 )
 
-func RegisterHandlers(serverMux *http.ServeMux) {
+var cfg *admin.ApiConfig
+
+func RegisterHandlers(c *admin.ApiConfig, serverMux *http.ServeMux) {
 	serverMux.HandleFunc("GET /api/healthz", handleHealthZ)
 	serverMux.HandleFunc("POST /api/validate_chirp", handleValidateChirp)
+	serverMux.HandleFunc("POST /api/users", handleCreateUser)
+	cfg = c
 }
 
 func handleHealthZ(w http.ResponseWriter, req *http.Request) {
@@ -43,4 +51,38 @@ func handleValidateChirp(w http.ResponseWriter, req *http.Request) {
 		CleanedBody string `json:"cleaned_body"`
 	}{chirp.CleanMessage(requestData.Body)})
 	return
+}
+
+func handleCreateUser(w http.ResponseWriter, req *http.Request) {
+	data, err := io.ReadAll(req.Body)
+	defer req.Body.Close()
+	if err != nil {
+		application.RespondWithError(w, 400, "Não foi possível ler a requisição", err)
+		return
+	}
+	var postData struct {
+		Email string `json:"email"`
+	}
+	if err := json.Unmarshal(data, &postData); err != nil {
+		application.RespondWithError(w, 400, "Não foi possível ler a requisição", err)
+		return
+	}
+	user := user.NewUser(postData.Email)
+	created, err := cfg.Db.CreateUser(req.Context(), database.CreateUserParams{
+		ID:    user.ID,
+		Email: user.Email,
+	})
+	if err != nil {
+		application.RespondWithError(w, 500, "Não foi possível criar o usuário", err)
+		return
+	}
+	user.Sync(created.CreatedAt, created.UpdatedAt)
+	jsonUser, err := json.Marshal(user)
+	if err != nil {
+		application.RespondWithError(w, 500, "Erro inesperado ao montar a resposta", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	fmt.Fprintln(w, string(jsonUser))
 }
