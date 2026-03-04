@@ -7,7 +7,6 @@ package database
 import (
 	"time"
 
-	"github.com/Dhinihan/chirpy/internal/model/user"
 	"github.com/google/uuid"
 )
 
@@ -24,13 +23,4 @@ type User struct {
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	Email     string
-}
-
-func (u *User) ToUser() user.User {
-	return user.User{
-		ID:        u.ID,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
-		Email:     u.Email,
-	}
 }

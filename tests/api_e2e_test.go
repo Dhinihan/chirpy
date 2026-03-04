@@ -122,6 +122,21 @@ func (s *APITestSuite) createUser(email string) uuid.UUID {
 	return user.ID
 }
 
+func (s *APITestSuite) createChirp(body string, userId uuid.UUID) uuid.UUID {
+	res := s.executeRequest(
+		"POST",
+		"/api/chirps",
+		fmt.Sprintf(
+			`{"body": "%s", "user_id": "%s"}`,
+			body,
+			userId.String(),
+		),
+	)
+	var chirp chirp.Chirp
+	json.Unmarshal(res.Body.Bytes(), &chirp)
+	return chirp.ID
+}
+
 // --------------- TESTES ---------------
 
 func (s *APITestSuite) TestPostUsers() {
@@ -185,4 +200,22 @@ func (s *APITestSuite) TestPostDirtyChirp() {
 	res := s.executeRequest("POST", "/api/chirps", string(body))
 	s.Equal(201, res.Code)
 	s.Contains(res.Body.String(), "It is a ****")
+}
+
+func (s *APITestSuite) TestGetAllChirps() {
+	userA := s.createUser("testA@email.com")
+	userB := s.createUser("testB@email.com")
+	bodyA := "Body A"
+	bodyB := "Body B"
+	bodyC := "Body C"
+	s.createChirp(bodyB, userA)
+	s.createChirp(bodyC, userA)
+	s.createChirp(bodyA, userB)
+
+	res := s.executeRequest("GET", "/api/chirps", "")
+	s.Equal(200, res.Code)
+	s.Regexp(
+		fmt.Sprintf("%s.+%s.+%s", bodyB, bodyC, bodyA),
+		res.Body.String(),
+	)
 }
