@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,9 @@ import (
 	"github.com/Dhinihan/chirpy/internal/application/admin"
 	"github.com/Dhinihan/chirpy/internal/application/api"
 	"github.com/Dhinihan/chirpy/internal/database"
+	"github.com/Dhinihan/chirpy/internal/model/chirp"
+	"github.com/Dhinihan/chirpy/internal/model/user"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq" // Driver necessário
 	"github.com/pressly/goose/v3"
 	"github.com/stretchr/testify/suite"
@@ -100,6 +104,8 @@ func (s *APITestSuite) SetupTest() {
 	}
 }
 
+// ------------ HELPERS ------------------
+
 // executeRequest é um helper para não repetir código de boilerpate
 func (s *APITestSuite) executeRequest(method, url, body string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(method, url, strings.NewReader(body))
@@ -107,6 +113,16 @@ func (s *APITestSuite) executeRequest(method, url, body string) *httptest.Respon
 	s.mux.ServeHTTP(res, req)
 	return res
 }
+
+func (s *APITestSuite) createUser(email string) uuid.UUID {
+	body := fmt.Sprintf(`{"email": "%s"}`, email)
+	res := s.executeRequest("POST", "/api/users", body)
+	var user user.User
+	json.Unmarshal(res.Body.Bytes(), &user)
+	return user.ID
+}
+
+// --------------- TESTES ---------------
 
 func (s *APITestSuite) TestPostUsers() {
 	email := "test@example.com"
@@ -128,4 +144,45 @@ func (s *APITestSuite) TestPostDuplicatedUser() {
 
 	s.Equal(500, res.Code)
 	s.Contains(res.Body.String(), `"Não foi possível criar o usuário"`)
+}
+
+func (s *APITestSuite) TestPostChirp() {
+	userId := s.createUser("test@example.com")
+	msg := "Valid message"
+	body, _ := json.Marshal(struct {
+		Body   string    `json:"body"`
+		UserId uuid.UUID `json:"user_id"`
+	}{msg, userId})
+	res := s.executeRequest("POST", "/api/chirps", string(body))
+	s.Equal(201, res.Code)
+
+	var resp chirp.Chirp
+	err := json.Unmarshal(res.Body.Bytes(), &resp)
+	s.Require().NoError(err, "Erro ao ler resposta")
+	s.Equal(resp.Body, msg)
+	s.Equal(resp.UserID.String(), userId.String())
+}
+
+func (s *APITestSuite) TestPostInvalidChirp() {
+	userId := s.createUser("test@example.com")
+	msg := ""
+	body, _ := json.Marshal(struct {
+		Body   string    `json:"body"`
+		UserId uuid.UUID `json:"user_id"`
+	}{msg, userId})
+	res := s.executeRequest("POST", "/api/chirps", string(body))
+	s.Equal(400, res.Code)
+	s.Contains(res.Body.String(), "Chirp not informed")
+}
+
+func (s *APITestSuite) TestPostDirtyChirp() {
+	userId := s.createUser("test@example.com")
+	msg := "It is a kerfuffle"
+	body, _ := json.Marshal(struct {
+		Body   string    `json:"body"`
+		UserId uuid.UUID `json:"user_id"`
+	}{msg, userId})
+	res := s.executeRequest("POST", "/api/chirps", string(body))
+	s.Equal(201, res.Code)
+	s.Contains(res.Body.String(), "It is a ****")
 }
