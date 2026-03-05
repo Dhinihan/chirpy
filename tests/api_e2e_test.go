@@ -219,3 +219,14 @@ func (s *APITestSuite) TestGetAllChirps() {
 		res.Body.String(),
 	)
 }
+
+func (s *APITestSuite) TestGetChirp() {
+	userId := s.createUser("test@email.com")
+	body := "Corpo esperado"
+	chirpId := s.createChirp(body, userId)
+
+	res := s.executeRequest("GET", "/api/chirps/"+chirpId.String(), "")
+	s.Equal(200, res.Code)
+	s.Contains(res.Body.String(), body)
+	s.Contains(res.Body.String(), userId.String())
+}

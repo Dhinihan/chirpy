@@ -18,6 +18,7 @@ func RegisterHandlers(c *admin.ApiConfig, serverMux *http.ServeMux) {
 	serverMux.HandleFunc("POST /api/users", handleCreateUser)
 	serverMux.HandleFunc("POST /api/chirps", handleCreateChirp)
 	serverMux.HandleFunc("GET /api/chirps", handleGetAllChirps)
+	serverMux.HandleFunc("GET /api/chirps/{chirpID}", handleGetChirp)
 	cfg = c
 }
 
@@ -68,12 +69,33 @@ func handleGetAllChirps(w http.ResponseWriter, req *http.Request) {
 			"Erro ao buscar os chirps",
 			err,
 		)
+		return
 	}
 	chirps := make([]chirp.Chirp, len(found))
 	for i, v := range found {
 		chirps[i] = v.ToChirp()
 	}
 	application.RespondWithJson(w, 200, chirps)
+}
+
+func handleGetChirp(w http.ResponseWriter, req *http.Request) {
+	uid, err := uuid.Parse(req.PathValue("chirpID"))
+	if err != nil {
+		application.RespondWithError(w, 400, "id inválido", err)
+		return
+	}
+	found, err := cfg.Db.GetChirp(req.Context(), uid)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			404,
+			"Chirp não encontrado",
+			err,
+		)
+		return
+	}
+	chirp := found.ToChirp()
+	application.RespondWithJson(w, 200, chirp)
 }
 
 func handleCreateUser(w http.ResponseWriter, req *http.Request) {
