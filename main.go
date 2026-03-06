@@ -26,7 +26,8 @@ func main() {
 	if err != nil {
 		fmt.Printf("Erro ao abrir conexão com o banco de dados:\n%s", err.Error())
 	}
-	cfg := admin.NewApiConfig(database.New(db))
+	secret := os.Getenv("JWT_SECRET")
+	cfg := admin.NewApiConfig(database.New(db), secret)
 
 	serverMux := http.NewServeMux()
 	serverMux.Handle(

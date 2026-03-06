@@ -2,6 +2,8 @@ package auth
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -58,4 +60,18 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 		return uuid.UUID{}, fmt.Errorf("Token invalido:\n%w", err)
 	}
 	return uuid.Parse(claims.Subject)
+}
+
+func GetBearerToken(headers http.Header) (string, error) {
+	authToken := headers.Get("Authorization")
+	atParts := strings.Split(authToken, " ")
+	stdMsg := "%s não está no formato 'Bearer <token>'"
+	stdErr := fmt.Errorf(stdMsg, authToken)
+	if len(atParts) != 2 {
+		return "", stdErr
+	}
+	if strings.ToLower(atParts[0]) != "bearer" {
+		return "", stdErr
+	}
+	return atParts[1], nil
 }

@@ -2,9 +2,11 @@ package api
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/Dhinihan/chirpy/internal/application"
 	"github.com/Dhinihan/chirpy/internal/application/admin"
+	"github.com/Dhinihan/chirpy/internal/auth"
 	"github.com/Dhinihan/chirpy/internal/database"
 	"github.com/Dhinihan/chirpy/internal/model/chirp"
 	"github.com/Dhinihan/chirpy/internal/model/user"
@@ -31,11 +33,21 @@ func handleHealthZ(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleCreateChirp(w http.ResponseWriter, req *http.Request) {
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		application.RespondWithError(w, 401, "unauthorized", err)
+	}
+	uid, err := auth.ValidateJWT(token, cfg.JwtSecret)
 	var requestData struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
+		Body string `json:"body"`
 	}
 	if err := application.ExtractBody(w, req, &requestData); err != nil {
+		application.RespondWithError(
+			w,
+			400,
+			"Erro ao ler requisição",
+			nil,
+		)
 		return
 	}
 	valid, msg := chirp.ValidateMessage(requestData.Body)
@@ -43,9 +55,14 @@ func handleCreateChirp(w http.ResponseWriter, req *http.Request) {
 		application.RespondWithError(w, 400, msg, nil)
 		return
 	}
-	dataFound, err := cfg.Db.GetUser(req.Context(), requestData.UserId)
+	dataFound, err := cfg.Db.GetUser(req.Context(), uid)
 	if err != nil {
-		application.RespondWithError(w, 404, "Usuário não encontrado", err)
+		application.RespondWithError(
+			w,
+			404,
+			"Usuário não encontrado",
+			err,
+		)
 	}
 	user := dataFound.ToUser()
 	chirp := chirp.NewChirp(user, chirp.CleanMessage(requestData.Body))
@@ -141,8 +158,9 @@ func handleCreateUser(w http.ResponseWriter, req *http.Request) {
 
 func handleLogin(w http.ResponseWriter, req *http.Request) {
 	var postData struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
+		Password      string `json:"password"`
+		Email         string `json:"email"`
+		ExpireSeconds int    `json:"expire_in_seconds"`
 	}
 	if err := application.ExtractBody(w, req, &postData); err != nil {
 		application.RespondWithError(
@@ -177,5 +195,23 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 		)
 		return
 	}
+	if postData.ExpireSeconds <= 0 || postData.ExpireSeconds > 3600 {
+		postData.ExpireSeconds = 3600
+	}
+	token, err := auth.MakeJWT(
+		user.ID,
+		cfg.JwtSecret,
+		time.Duration(postData.ExpireSeconds)*time.Second,
+	)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			500,
+			"erro ao gerar token",
+			err,
+		)
+		return
+	}
+	user.AuthToken = token
 	application.RespondWithJson(w, 200, user)
 }

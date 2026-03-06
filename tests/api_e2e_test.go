@@ -13,6 +13,7 @@ import (
 
 	"github.com/Dhinihan/chirpy/internal/application/admin"
 	"github.com/Dhinihan/chirpy/internal/application/api"
+	"github.com/Dhinihan/chirpy/internal/auth"
 	"github.com/Dhinihan/chirpy/internal/database"
 	"github.com/Dhinihan/chirpy/internal/model/chirp"
 	"github.com/Dhinihan/chirpy/internal/model/user"
@@ -82,7 +83,7 @@ func (s *APITestSuite) SetupSuite() {
 	}
 
 	s.mux = http.NewServeMux()
-	cfg := admin.NewApiConfig(s.queries)
+	cfg := admin.NewApiConfig(s.queries, "segredo")
 	api.RegisterHandlers(cfg, s.mux)
 
 }
@@ -113,6 +114,17 @@ func (s *APITestSuite) executeRequest(method, url, body string) *httptest.Respon
 	s.mux.ServeHTTP(res, req)
 	return res
 }
+func (s *APITestSuite) executeAuthRequest(
+	method, url, body string,
+	uid uuid.UUID,
+) *httptest.ResponseRecorder {
+	token, _ := auth.MakeJWT(uid, "segredo", time.Minute)
+	req := httptest.NewRequest(method, url, strings.NewReader(body))
+	req.Header.Set("Authorization", "bearer "+token)
+	res := httptest.NewRecorder()
+	s.mux.ServeHTTP(res, req)
+	return res
+}
 
 func (s *APITestSuite) createUser(email string) uuid.UUID {
 	body := fmt.Sprintf(`{"email": "%s", "password": "senha" }`, email)
@@ -123,14 +135,14 @@ func (s *APITestSuite) createUser(email string) uuid.UUID {
 }
 
 func (s *APITestSuite) createChirp(body string, userId uuid.UUID) uuid.UUID {
-	res := s.executeRequest(
+	res := s.executeAuthRequest(
 		"POST",
 		"/api/chirps",
 		fmt.Sprintf(
-			`{"body": "%s", "user_id": "%s"}`,
+			`{"body": "%s"}`,
 			body,
-			userId.String(),
 		),
+		userId,
 	)
 	var chirp chirp.Chirp
 	json.Unmarshal(res.Body.Bytes(), &chirp)
@@ -173,10 +185,14 @@ func (s *APITestSuite) TestPostChirp() {
 	userId := s.createUser("test@example.com")
 	msg := "Valid message"
 	body, _ := json.Marshal(struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
-	}{msg, userId})
-	res := s.executeRequest("POST", "/api/chirps", string(body))
+		Body string `json:"body"`
+	}{msg})
+	res := s.executeAuthRequest(
+		"POST",
+		"/api/chirps",
+		string(body),
+		userId,
+	)
 	s.Equal(201, res.Code)
 
 	var resp chirp.Chirp
@@ -190,10 +206,14 @@ func (s *APITestSuite) TestPostInvalidChirp() {
 	userId := s.createUser("test@example.com")
 	msg := ""
 	body, _ := json.Marshal(struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
-	}{msg, userId})
-	res := s.executeRequest("POST", "/api/chirps", string(body))
+		Body string `json:"body"`
+	}{msg})
+	res := s.executeAuthRequest(
+		"POST",
+		"/api/chirps",
+		string(body),
+		userId,
+	)
 	s.Equal(400, res.Code)
 	s.Contains(res.Body.String(), "Chirp not informed")
 }
@@ -202,10 +222,14 @@ func (s *APITestSuite) TestPostDirtyChirp() {
 	userId := s.createUser("test@example.com")
 	msg := "It is a kerfuffle"
 	body, _ := json.Marshal(struct {
-		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
-	}{msg, userId})
-	res := s.executeRequest("POST", "/api/chirps", string(body))
+		Body string `json:"body"`
+	}{msg})
+	res := s.executeAuthRequest(
+		"POST",
+		"/api/chirps",
+		string(body),
+		userId,
+	)
 	s.Equal(201, res.Code)
 	s.Contains(res.Body.String(), "It is a ****")
 }
@@ -251,6 +275,7 @@ func (s *APITestSuite) TestValidLogin() {
 
 	s.Equal(res.Code, 200)
 	s.Contains(res.Body.String(), uid.String())
+	s.Contains(res.Body.String(), `"token":`)
 }
 
 func (s *APITestSuite) TestInvalidLoginWrongPassword() {

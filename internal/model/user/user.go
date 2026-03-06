@@ -14,6 +14,7 @@ type User struct {
 	UpdatedAt      time.Time `json:"updated_at"`
 	Email          string    `json:"email"`
 	HashedPassword string    `json:"-"`
+	AuthToken      string    `json:"token"`
 }
 
 func NewUser(email, password string) (User, error) {

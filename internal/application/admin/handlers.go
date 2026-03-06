@@ -12,10 +12,11 @@ import (
 type ApiConfig struct {
 	fileserverHits atomic.Int32
 	Db             *database.Queries
+	JwtSecret      string
 }
 
-func NewApiConfig(db *database.Queries) *ApiConfig {
-	return &ApiConfig{Db: db}
+func NewApiConfig(db *database.Queries, secret string) *ApiConfig {
+	return &ApiConfig{Db: db, JwtSecret: secret}
 }
 
 func RegisterHandlers(cfg *ApiConfig, serverMux *http.ServeMux) {
