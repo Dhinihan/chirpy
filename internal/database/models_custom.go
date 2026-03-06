@@ -7,10 +7,11 @@ import (
 
 func (u *User) ToUser() user.User {
 	return user.User{
-		ID:        u.ID,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
-		Email:     u.Email,
+		ID:             u.ID,
+		CreatedAt:      u.CreatedAt,
+		UpdatedAt:      u.UpdatedAt,
+		Email:          u.Email,
+		HashedPassword: u.HashedPassword,
 	}
 }
 

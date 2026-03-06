@@ -115,7 +115,7 @@ func (s *APITestSuite) executeRequest(method, url, body string) *httptest.Respon
 }
 
 func (s *APITestSuite) createUser(email string) uuid.UUID {
-	body := fmt.Sprintf(`{"email": "%s"}`, email)
+	body := fmt.Sprintf(`{"email": "%s", "password": "senha" }`, email)
 	res := s.executeRequest("POST", "/api/users", body)
 	var user user.User
 	json.Unmarshal(res.Body.Bytes(), &user)
@@ -141,7 +141,12 @@ func (s *APITestSuite) createChirp(body string, userId uuid.UUID) uuid.UUID {
 
 func (s *APITestSuite) TestPostUsers() {
 	email := "test@example.com"
-	body := fmt.Sprintf(`{"email": "%s"}`, email)
+	password := "senha segura"
+	body := fmt.Sprintf(
+		`{"email": "%s", "password": "%s"}`,
+		email,
+		password,
+	)
 	res := s.executeRequest("POST", "/api/users", body)
 
 	s.Equal(201, res.Code)
@@ -149,6 +154,9 @@ func (s *APITestSuite) TestPostUsers() {
 	s.Contains(res.Body.String(), `"id"`)
 	s.Contains(res.Body.String(), `"created_at"`)
 	s.Contains(res.Body.String(), `"updated_at"`)
+	s.NotContains(res.Body.String(), "Password")
+	s.NotContains(res.Body.String(), "senha")
+	s.NotContains(res.Body.String(), "segura")
 }
 
 func (s *APITestSuite) TestPostDuplicatedUser() {
@@ -229,4 +237,43 @@ func (s *APITestSuite) TestGetChirp() {
 	s.Equal(200, res.Code)
 	s.Contains(res.Body.String(), body)
 	s.Contains(res.Body.String(), userId.String())
+}
+
+func (s *APITestSuite) TestValidLogin() {
+	email := "email@valido.com"
+	uid := s.createUser(email)
+	req := fmt.Sprintf(
+		`{"email": "%s", "password": "%s"}`,
+		email,
+		"senha",
+	)
+	res := s.executeRequest("POST", "/api/login", req)
+
+	s.Equal(res.Code, 200)
+	s.Contains(res.Body.String(), uid.String())
+}
+
+func (s *APITestSuite) TestInvalidLoginWrongPassword() {
+	email := "email@valido.com"
+	s.createUser(email)
+	req := fmt.Sprintf(
+		`{"email": "%s", "password": "%s"}`,
+		email,
+		"senha errada",
+	)
+	res := s.executeRequest("POST", "/api/login", req)
+
+	s.Equal(res.Code, 401)
+}
+
+func (s *APITestSuite) TestInvalidLoginWrongEmail() {
+	email := "email@valido.com"
+	s.createUser(email)
+	req := fmt.Sprintf(
+		`{"email": "email@errado.com", "password": "%s"}`,
+		"senha",
+	)
+	res := s.executeRequest("POST", "/api/login", req)
+
+	s.Equal(res.Code, 401)
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/Dhinihan/chirpy/internal/database"
 	"github.com/Dhinihan/chirpy/internal/model/chirp"
 	"github.com/Dhinihan/chirpy/internal/model/user"
+	"github.com/alexedwards/argon2id"
 	"github.com/google/uuid"
 )
 
@@ -16,6 +17,7 @@ var cfg *admin.ApiConfig
 func RegisterHandlers(c *admin.ApiConfig, serverMux *http.ServeMux) {
 	serverMux.HandleFunc("GET /api/healthz", handleHealthZ)
 	serverMux.HandleFunc("POST /api/users", handleCreateUser)
+	serverMux.HandleFunc("POST /api/login", handleLogin)
 	serverMux.HandleFunc("POST /api/chirps", handleCreateChirp)
 	serverMux.HandleFunc("GET /api/chirps", handleGetAllChirps)
 	serverMux.HandleFunc("GET /api/chirps/{chirpID}", handleGetChirp)
@@ -100,20 +102,80 @@ func handleGetChirp(w http.ResponseWriter, req *http.Request) {
 
 func handleCreateUser(w http.ResponseWriter, req *http.Request) {
 	var postData struct {
-		Email string `json:"email"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 	if err := application.ExtractBody(w, req, &postData); err != nil {
+		application.RespondWithError(
+			w,
+			400,
+			"Erro ao processar requisição",
+			err,
+		)
 		return
 	}
-	user := user.NewUser(postData.Email)
-	created, err := cfg.Db.CreateUser(req.Context(), database.CreateUserParams{
-		ID:    user.ID,
-		Email: user.Email,
-	})
+	user, err := user.NewUser(postData.Email, postData.Password)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			500,
+			"Erro ao processar a senha",
+			err,
+		)
+	}
+	created, err := cfg.Db.CreateUser(
+		req.Context(),
+		database.CreateUserParams{
+			ID:             user.ID,
+			Email:          user.Email,
+			HashedPassword: user.HashedPassword,
+		},
+	)
 	if err != nil {
 		application.RespondWithError(w, 500, "Não foi possível criar o usuário", err)
 		return
 	}
 	user.Sync(created.CreatedAt, created.UpdatedAt)
 	application.RespondWithJson(w, 201, user)
+}
+
+func handleLogin(w http.ResponseWriter, req *http.Request) {
+	var postData struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+	if err := application.ExtractBody(w, req, &postData); err != nil {
+		application.RespondWithError(
+			w,
+			400,
+			"Erro ao processar requisição",
+			err,
+		)
+		return
+	}
+	found, err := cfg.Db.GetUserByEmail(req.Context(), postData.Email)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			401,
+			"Incorrect email or password",
+			err,
+		)
+		return
+	}
+	user := found.ToUser()
+	match, err := argon2id.ComparePasswordAndHash(
+		postData.Password,
+		user.HashedPassword,
+	)
+	if err != nil || !match {
+		application.RespondWithError(
+			w,
+			401,
+			"Incorrect email or password",
+			err,
+		)
+		return
+	}
+	application.RespondWithJson(w, 200, user)
 }
