@@ -149,6 +149,21 @@ func (s *APITestSuite) createChirp(body string, userId uuid.UUID) uuid.UUID {
 	return chirp.ID
 }
 
+func (s *APITestSuite) generateAuthUser(email string) user.User {
+	body := fmt.Sprintf(`{"email": "%s", "password": "senha" }`, email)
+	res := s.executeRequest("POST", "/api/users", body)
+	var user user.User
+	json.Unmarshal(res.Body.Bytes(), &user)
+	res2 := s.executeRequest("POST", "/api/login",
+		fmt.Sprintf(
+			`{"email": "%s", "password": "%s"}`,
+			email,
+			"senha",
+		))
+	json.Unmarshal(res2.Body.Bytes(), &user)
+	return user
+}
+
 // --------------- TESTES ---------------
 
 func (s *APITestSuite) TestPostUsers() {
@@ -276,6 +291,7 @@ func (s *APITestSuite) TestValidLogin() {
 	s.Equal(res.Code, 200)
 	s.Contains(res.Body.String(), uid.String())
 	s.Contains(res.Body.String(), `"token":`)
+	s.Contains(res.Body.String(), `"refresh_token":`)
 }
 
 func (s *APITestSuite) TestInvalidLoginWrongPassword() {
@@ -301,4 +317,41 @@ func (s *APITestSuite) TestInvalidLoginWrongEmail() {
 	res := s.executeRequest("POST", "/api/login", req)
 
 	s.Equal(res.Code, 401)
+}
+
+func (s *APITestSuite) TestRefreshToken() {
+	user := s.generateAuthUser("logado@email.com")
+	req := httptest.NewRequest(
+		"POST",
+		"/api/refresh",
+		strings.NewReader(""),
+	)
+	req.Header.Set("Authorization", "bearer "+user.RefreshToken)
+	res := httptest.NewRecorder()
+	s.mux.ServeHTTP(res, req)
+	s.Equal(200, res.Code)
+	s.Contains(res.Body.String(), `"token":`)
+}
+
+func (s *APITestSuite) TestRevokeRefreshToken() {
+	user := s.generateAuthUser("logado@email.com")
+	req1 := httptest.NewRequest(
+		"POST",
+		"/api/revoke",
+		strings.NewReader(""),
+	)
+	req1.Header.Set("Authorization", "bearer "+user.RefreshToken)
+	res1 := httptest.NewRecorder()
+	s.mux.ServeHTTP(res1, req1)
+	s.Equal(204, res1.Code)
+	req2 := httptest.NewRequest(
+		"POST",
+		"/api/refresh",
+		strings.NewReader(""),
+	)
+	req2.Header.Set("Authorization", "bearer "+user.RefreshToken)
+	res2 := httptest.NewRecorder()
+	s.mux.ServeHTTP(res2, req2)
+	s.Equal(401, res2.Code)
+	s.NotContains(res2.Body.String(), `"token":`)
 }

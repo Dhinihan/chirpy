@@ -205,3 +205,17 @@ func TestGetBearerToken(t *testing.T) {
 		})
 	}
 }
+
+func TestMakeRefreshToken(t *testing.T) {
+	token1 := MakeRefreshToken()
+	if len(token1) != 64 {
+		t.Fatalf("Tamanho de %s não é 64", token1)
+	}
+	token2 := MakeRefreshToken()
+	if len(token2) != 64 {
+		t.Fatalf("Tamanho de %s não é 64", token2)
+	}
+	if token1 == token2 {
+		t.Fatalf("Refresh token não é aleatório")
+	}
+}

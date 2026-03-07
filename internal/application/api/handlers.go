@@ -10,7 +10,6 @@ import (
 	"github.com/Dhinihan/chirpy/internal/database"
 	"github.com/Dhinihan/chirpy/internal/model/chirp"
 	"github.com/Dhinihan/chirpy/internal/model/user"
-	"github.com/alexedwards/argon2id"
 	"github.com/google/uuid"
 )
 
@@ -20,6 +19,8 @@ func RegisterHandlers(c *admin.ApiConfig, serverMux *http.ServeMux) {
 	serverMux.HandleFunc("GET /api/healthz", handleHealthZ)
 	serverMux.HandleFunc("POST /api/users", handleCreateUser)
 	serverMux.HandleFunc("POST /api/login", handleLogin)
+	serverMux.HandleFunc("POST /api/refresh", handleRefreshToken)
+	serverMux.HandleFunc("POST /api/revoke", handleRevokeToken)
 	serverMux.HandleFunc("POST /api/chirps", handleCreateChirp)
 	serverMux.HandleFunc("GET /api/chirps", handleGetAllChirps)
 	serverMux.HandleFunc("GET /api/chirps/{chirpID}", handleGetChirp)
@@ -36,8 +37,13 @@ func handleCreateChirp(w http.ResponseWriter, req *http.Request) {
 	token, err := auth.GetBearerToken(req.Header)
 	if err != nil {
 		application.RespondWithError(w, 401, "unauthorized", err)
+		return
 	}
 	uid, err := auth.ValidateJWT(token, cfg.JwtSecret)
+	if err != nil {
+		application.RespondWithError(w, 401, "unauthorized", err)
+		return
+	}
 	var requestData struct {
 		Body string `json:"body"`
 	}
@@ -63,6 +69,7 @@ func handleCreateChirp(w http.ResponseWriter, req *http.Request) {
 			"Usuário não encontrado",
 			err,
 		)
+		return
 	}
 	user := dataFound.ToUser()
 	chirp := chirp.NewChirp(user, chirp.CleanMessage(requestData.Body))
@@ -158,9 +165,8 @@ func handleCreateUser(w http.ResponseWriter, req *http.Request) {
 
 func handleLogin(w http.ResponseWriter, req *http.Request) {
 	var postData struct {
-		Password      string `json:"password"`
-		Email         string `json:"email"`
-		ExpireSeconds int    `json:"expire_in_seconds"`
+		Password string `json:"password"`
+		Email    string `json:"email"`
 	}
 	if err := application.ExtractBody(w, req, &postData); err != nil {
 		application.RespondWithError(
@@ -171,47 +177,83 @@ func handleLogin(w http.ResponseWriter, req *http.Request) {
 		)
 		return
 	}
-	found, err := cfg.Db.GetUserByEmail(req.Context(), postData.Email)
+	user, lErr := login(
+		req.Context(),
+		cfg,
+		postData.Email,
+		postData.Password,
+	)
+	if lErr != nil {
+		application.RespondWithError(
+			w,
+			lErr.code,
+			lErr.msg,
+			lErr.orig,
+		)
+		return
+	}
+	application.RespondWithJson(w, 200, user)
+}
+
+func handleRefreshToken(w http.ResponseWriter, req *http.Request) {
+	authToken, err := auth.GetBearerToken(req.Header)
 	if err != nil {
 		application.RespondWithError(
 			w,
 			401,
-			"Incorrect email or password",
+			"autorização mal formatada",
 			err,
 		)
 		return
 	}
-	user := found.ToUser()
-	match, err := argon2id.ComparePasswordAndHash(
-		postData.Password,
-		user.HashedPassword,
-	)
-	if err != nil || !match {
+	uid, err := cfg.Db.CheckRefreshToken(req.Context(), authToken)
+	if err != nil {
 		application.RespondWithError(
 			w,
 			401,
-			"Incorrect email or password",
+			"Token inválido",
 			err,
 		)
 		return
 	}
-	if postData.ExpireSeconds <= 0 || postData.ExpireSeconds > 3600 {
-		postData.ExpireSeconds = 3600
-	}
-	token, err := auth.MakeJWT(
-		user.ID,
-		cfg.JwtSecret,
-		time.Duration(postData.ExpireSeconds)*time.Second,
-	)
+	token, err := auth.MakeJWT(uid, cfg.JwtSecret, time.Hour)
 	if err != nil {
 		application.RespondWithError(
 			w,
 			500,
-			"erro ao gerar token",
+			"Erro ao gerar o token",
 			err,
 		)
 		return
 	}
-	user.AuthToken = token
-	application.RespondWithJson(w, 200, user)
+	application.RespondWithJson(w, 200, struct {
+		Token string `json:"token"`
+	}{token})
+
+}
+
+func handleRevokeToken(w http.ResponseWriter, req *http.Request) {
+	authToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			401,
+			"autorização mal formatada",
+			err,
+		)
+		return
+	}
+	if err := cfg.Db.RevokeRefreshToken(
+		req.Context(),
+		authToken,
+	); err != nil {
+		application.RespondWithError(
+			w,
+			401,
+			"Token inválido",
+			err,
+		)
+		return
+	}
+	w.WriteHeader(204)
 }

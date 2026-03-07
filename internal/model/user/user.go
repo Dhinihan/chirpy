@@ -15,6 +15,7 @@ type User struct {
 	Email          string    `json:"email"`
 	HashedPassword string    `json:"-"`
 	AuthToken      string    `json:"token"`
+	RefreshToken   string    `json:"refresh_token"`
 }
 
 func NewUser(email, password string) (User, error) {
