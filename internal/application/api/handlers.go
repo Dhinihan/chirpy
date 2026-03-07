@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -18,6 +19,7 @@ var cfg *admin.ApiConfig
 func RegisterHandlers(c *admin.ApiConfig, serverMux *http.ServeMux) {
 	serverMux.HandleFunc("GET /api/healthz", handleHealthZ)
 	serverMux.HandleFunc("POST /api/users", handleCreateUser)
+	serverMux.HandleFunc("PUT /api/users", handleUpadateUser)
 	serverMux.HandleFunc("POST /api/login", handleLogin)
 	serverMux.HandleFunc("POST /api/refresh", handleRefreshToken)
 	serverMux.HandleFunc("POST /api/revoke", handleRevokeToken)
@@ -161,6 +163,52 @@ func handleCreateUser(w http.ResponseWriter, req *http.Request) {
 	}
 	user.Sync(created.CreatedAt, created.UpdatedAt)
 	application.RespondWithJson(w, 201, user)
+}
+
+func handleUpadateUser(w http.ResponseWriter, req *http.Request) {
+	var requestData struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+	uid, err := application.ExtractAuthBody(
+		w,
+		req,
+		cfg.JwtSecret,
+		&requestData,
+	)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	hash, err := auth.HashPassword(requestData.Password)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			500,
+			"Erro ao gerar hash",
+			err,
+		)
+		return
+	}
+	found, err := cfg.Db.UpdateUserCredentials(
+		req.Context(),
+		database.UpdateUserCredentialsParams{
+			ID:             uid,
+			Email:          requestData.Email,
+			HashedPassword: hash,
+		},
+	)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			500,
+			"Erro ao atualizar usuário",
+			err,
+		)
+		return
+	}
+	userUpdated := found.ToUser()
+	application.RespondWithJson(w, 200, userUpdated)
 }
 
 func handleLogin(w http.ResponseWriter, req *http.Request) {

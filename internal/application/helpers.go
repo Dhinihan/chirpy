@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/Dhinihan/chirpy/internal/auth"
+	"github.com/google/uuid"
 )
 
 func RespondWithError(w http.ResponseWriter, code int, msg string, err error) {
@@ -24,7 +27,11 @@ func RespondWithJson(w http.ResponseWriter, code int, payload interface{}) {
 	fmt.Fprintln(w, string(js))
 }
 
-func ExtractBody(w http.ResponseWriter, req *http.Request, requestData any) error {
+func ExtractBody(
+	w http.ResponseWriter,
+	req *http.Request,
+	requestData any,
+) error {
 	defer req.Body.Close()
 	data, err := io.ReadAll(req.Body)
 	if err != nil {
@@ -36,4 +43,39 @@ func ExtractBody(w http.ResponseWriter, req *http.Request, requestData any) erro
 		return errors.New("Erro ao decodificar o json")
 	}
 	return nil
+}
+
+func ExtractAuthBody(
+	w http.ResponseWriter,
+	req *http.Request,
+	secret string,
+	requestData any,
+) (uuid.UUID, error) {
+	defer req.Body.Close()
+	token, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		RespondWithError(w, 401, "unauthorized", err)
+		return uuid.UUID{}, errors.New("Erro ao ler token")
+
+	}
+	uid, err := auth.ValidateJWT(token, secret)
+	if err != nil {
+		RespondWithError(w, 401, "unauthorized", err)
+		return uuid.UUID{}, errors.New("Token inválido")
+	}
+	data, err := io.ReadAll(req.Body)
+	if err != nil {
+		RespondWithError(w, 500, "Something went wrong", err)
+		return uuid.UUID{}, errors.New("Erro ao ler o Body")
+	}
+	if err := json.Unmarshal(data, requestData); err != nil {
+		RespondWithError(
+			w,
+			400,
+			"expected json with 'body' key",
+			err,
+		)
+		return uuid.UUID{}, errors.New("Erro ao decodificar o json")
+	}
+	return uid, nil
 }

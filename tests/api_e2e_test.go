@@ -186,6 +186,23 @@ func (s *APITestSuite) TestPostUsers() {
 	s.NotContains(res.Body.String(), "segura")
 }
 
+func (s *APITestSuite) TestUpdateUser() {
+	email := "novo@email.com"
+	password := "senha"
+	uid := s.createUser("velho@email")
+	credsTemplate := `{"email": "%s", "password": "%s"}`
+	creds := fmt.Sprintf(credsTemplate, email, password)
+	res := s.executeAuthRequest("PUT", "/api/users", creds, uid)
+	s.Equal(200, res.Code)
+	s.Contains(res.Body.String(), email)
+	s.Contains(res.Body.String(), `"id"`)
+	s.Contains(res.Body.String(), `"created_at"`)
+	s.Contains(res.Body.String(), `"updated_at"`)
+	s.NotContains(res.Body.String(), "Password")
+	s.NotContains(res.Body.String(), "senha")
+	s.NotContains(res.Body.String(), "segura")
+}
+
 func (s *APITestSuite) TestPostDuplicatedUser() {
 	email := "test@example.com"
 	body := fmt.Sprintf(`{"email": "%s"}`, email)

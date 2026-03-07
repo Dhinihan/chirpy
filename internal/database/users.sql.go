@@ -12,9 +12,12 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, email, hashed_password)
-VALUES ($1, $2, $3)
-RETURNING id, created_at, updated_at, email, hashed_password
+INSERT INTO
+  users (id, email, hashed_password)
+VALUES
+  ($1, $2, $3)
+RETURNING
+  id, created_at, updated_at, email, hashed_password
 `
 
 type CreateUserParams struct {
@@ -37,7 +40,12 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, created_at, updated_at, email, hashed_password FROM users WHERE id = $1
+SELECT
+  id, created_at, updated_at, email, hashed_password
+FROM
+  users
+WHERE
+  id = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -54,7 +62,12 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, created_at, updated_at, email, hashed_password FROM users WHERE email = $1
+SELECT
+  id, created_at, updated_at, email, hashed_password
+FROM
+  users
+WHERE
+  email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -77,4 +90,35 @@ DELETE FROM users
 func (q *Queries) ResetUsers(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, resetUsers)
 	return err
+}
+
+const updateUserCredentials = `-- name: UpdateUserCredentials :one
+UPDATE users
+SET
+  email = $2,
+  hashed_password = $3,
+  updated_at = CURRENT_TIMESTAMP
+WHERE
+  id = $1
+RETURNING
+  id, created_at, updated_at, email, hashed_password
+`
+
+type UpdateUserCredentialsParams struct {
+	ID             uuid.UUID
+	Email          string
+	HashedPassword string
+}
+
+func (q *Queries) UpdateUserCredentials(ctx context.Context, arg UpdateUserCredentialsParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserCredentials, arg.ID, arg.Email, arg.HashedPassword)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Email,
+		&i.HashedPassword,
+	)
+	return i, err
 }
