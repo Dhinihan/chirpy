@@ -16,16 +16,17 @@ import (
 
 var cfg *admin.ApiConfig
 
-func RegisterHandlers(c *admin.ApiConfig, serverMux *http.ServeMux) {
-	serverMux.HandleFunc("GET /api/healthz", handleHealthZ)
-	serverMux.HandleFunc("POST /api/users", handleCreateUser)
-	serverMux.HandleFunc("PUT /api/users", handleUpadateUser)
-	serverMux.HandleFunc("POST /api/login", handleLogin)
-	serverMux.HandleFunc("POST /api/refresh", handleRefreshToken)
-	serverMux.HandleFunc("POST /api/revoke", handleRevokeToken)
-	serverMux.HandleFunc("POST /api/chirps", handleCreateChirp)
-	serverMux.HandleFunc("GET /api/chirps", handleGetAllChirps)
-	serverMux.HandleFunc("GET /api/chirps/{chirpID}", handleGetChirp)
+func RegisterHandlers(c *admin.ApiConfig, sMux *http.ServeMux) {
+	sMux.HandleFunc("GET /api/healthz", handleHealthZ)
+	sMux.HandleFunc("POST /api/users", handleCreateUser)
+	sMux.HandleFunc("PUT /api/users", handleUpadateUser)
+	sMux.HandleFunc("POST /api/login", handleLogin)
+	sMux.HandleFunc("POST /api/refresh", handleRefreshToken)
+	sMux.HandleFunc("POST /api/revoke", handleRevokeToken)
+	sMux.HandleFunc("POST /api/chirps", handleCreateChirp)
+	sMux.HandleFunc("GET /api/chirps", handleGetAllChirps)
+	sMux.HandleFunc("GET /api/chirps/{chirpID}", handleGetChirp)
+	sMux.HandleFunc("DELETE /api/chirps/{chirpID}", handleDeleteChirp)
 	cfg = c
 }
 
@@ -36,26 +37,16 @@ func handleHealthZ(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleCreateChirp(w http.ResponseWriter, req *http.Request) {
-	token, err := auth.GetBearerToken(req.Header)
-	if err != nil {
-		application.RespondWithError(w, 401, "unauthorized", err)
-		return
-	}
-	uid, err := auth.ValidateJWT(token, cfg.JwtSecret)
-	if err != nil {
-		application.RespondWithError(w, 401, "unauthorized", err)
-		return
-	}
 	var requestData struct {
 		Body string `json:"body"`
 	}
-	if err := application.ExtractBody(w, req, &requestData); err != nil {
-		application.RespondWithError(
-			w,
-			400,
-			"Erro ao ler requisição",
-			nil,
-		)
+	uid, err := application.ExtractAuthBody(
+		w,
+		req,
+		cfg.JwtSecret,
+		&requestData,
+	)
+	if err != nil {
 		return
 	}
 	valid, msg := chirp.ValidateMessage(requestData.Body)
@@ -107,12 +98,12 @@ func handleGetAllChirps(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleGetChirp(w http.ResponseWriter, req *http.Request) {
-	uid, err := uuid.Parse(req.PathValue("chirpID"))
+	cid, err := uuid.Parse(req.PathValue("chirpID"))
 	if err != nil {
 		application.RespondWithError(w, 400, "id inválido", err)
 		return
 	}
-	found, err := cfg.Db.GetChirp(req.Context(), uid)
+	found, err := cfg.Db.GetChirp(req.Context(), cid)
 	if err != nil {
 		application.RespondWithError(
 			w,
@@ -124,6 +115,42 @@ func handleGetChirp(w http.ResponseWriter, req *http.Request) {
 	}
 	chirp := found.ToChirp()
 	application.RespondWithJson(w, 200, chirp)
+}
+
+func handleDeleteChirp(w http.ResponseWriter, req *http.Request) {
+	uid, err := application.GetAuthUser(
+		w,
+		req,
+		cfg.JwtSecret,
+	)
+	if err != nil {
+		return
+	}
+	cid, err := uuid.Parse(req.PathValue("chirpID"))
+	if err != nil {
+		application.RespondWithError(w, 400, "id inválido", err)
+		return
+	}
+	found, err := cfg.Db.GetChirp(req.Context(), cid)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			404,
+			"Chirp não encontrado",
+			err,
+		)
+		return
+	}
+	chp := found.ToChirp()
+	if chp.UserID != uid {
+		application.RespondWithError(w, 403, "forbidden", err)
+		return
+	}
+	if err := cfg.Db.DeleteChirp(req.Context(), cid); err != nil {
+		application.RespondWithError(w, 500, "Erro ao deletar", err)
+		return
+	}
+	w.WriteHeader(204)
 }
 
 func handleCreateUser(w http.ResponseWriter, req *http.Request) {

@@ -12,9 +12,12 @@ import (
 )
 
 const createChirp = `-- name: CreateChirp :one
-INSERT INTO chirps (id, body, user_id)
-VALUES ($1, $2, $3)
-RETURNING id, created_at, updated_at, body, user_id
+INSERT INTO
+  chirps (id, body, user_id)
+VALUES
+  ($1, $2, $3)
+RETURNING
+  id, created_at, updated_at, body, user_id
 `
 
 type CreateChirpParams struct {
@@ -36,8 +39,28 @@ func (q *Queries) CreateChirp(ctx context.Context, arg CreateChirpParams) (Chirp
 	return i, err
 }
 
+const deleteChirp = `-- name: DeleteChirp :exec
+DELETE FROM chirps
+WHERE
+  id = $1
+`
+
+func (q *Queries) DeleteChirp(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChirp, id)
+	return err
+}
+
 const getAllChirps = `-- name: GetAllChirps :many
-SELECT id, created_at, updated_at, body, user_id FROM chirps ORDER BY created_at ASC LIMIT 100 OFFSET 0
+SELECT
+  id, created_at, updated_at, body, user_id
+FROM
+  chirps
+ORDER BY
+  created_at ASC
+LIMIT
+  100
+OFFSET
+  0
 `
 
 func (q *Queries) GetAllChirps(ctx context.Context) ([]Chirp, error) {
@@ -70,7 +93,12 @@ func (q *Queries) GetAllChirps(ctx context.Context) ([]Chirp, error) {
 }
 
 const getChirp = `-- name: GetChirp :one
-SELECT id, created_at, updated_at, body, user_id FROM chirps WHERE id = $1
+SELECT
+  id, created_at, updated_at, body, user_id
+FROM
+  chirps
+WHERE
+  id = $1
 `
 
 func (q *Queries) GetChirp(ctx context.Context, id uuid.UUID) (Chirp, error) {

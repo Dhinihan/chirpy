@@ -45,13 +45,11 @@ func ExtractBody(
 	return nil
 }
 
-func ExtractAuthBody(
+func GetAuthUser(
 	w http.ResponseWriter,
 	req *http.Request,
 	secret string,
-	requestData any,
 ) (uuid.UUID, error) {
-	defer req.Body.Close()
 	token, err := auth.GetBearerToken(req.Header)
 	if err != nil {
 		RespondWithError(w, 401, "unauthorized", err)
@@ -62,6 +60,20 @@ func ExtractAuthBody(
 	if err != nil {
 		RespondWithError(w, 401, "unauthorized", err)
 		return uuid.UUID{}, errors.New("Token inválido")
+	}
+	return uid, nil
+}
+
+func ExtractAuthBody(
+	w http.ResponseWriter,
+	req *http.Request,
+	secret string,
+	requestData any,
+) (uuid.UUID, error) {
+	defer req.Body.Close()
+	uid, err := GetAuthUser(w, req, secret)
+	if err != nil {
+		return uuid.UUID{}, err
 	}
 	data, err := io.ReadAll(req.Body)
 	if err != nil {

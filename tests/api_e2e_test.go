@@ -295,6 +295,29 @@ func (s *APITestSuite) TestGetChirp() {
 	s.Contains(res.Body.String(), userId.String())
 }
 
+func (s *APITestSuite) TestDeleteChirp() {
+	u1 := s.generateAuthUser("u1@email.com")
+	u2Id := s.createUser("u2@email.com")
+	c1 := s.createChirp("chirp 1", u1.ID)
+	c2 := s.createChirp("chirp 1", u2Id)
+	res1 := s.executeAuthRequest(
+		"DELETE",
+		"/api/chirps/"+c1.String(),
+		"",
+		u1.ID,
+	)
+	s.Equal(204, res1.Code)
+	res2 := s.executeRequest("GET", "/api/chirps"+c1.String(), "")
+	s.Equal(404, res2.Code)
+	res3 := s.executeAuthRequest(
+		"DELETE",
+		"/api/chirps/"+c2.String(),
+		"",
+		u1.ID,
+	)
+	s.Equal(403, res3.Code)
+}
+
 func (s *APITestSuite) TestValidLogin() {
 	email := "email@valido.com"
 	uid := s.createUser(email)
