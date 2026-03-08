@@ -12,6 +12,7 @@ func (u *User) ToUser() user.User {
 		UpdatedAt:      u.UpdatedAt,
 		Email:          u.Email,
 		HashedPassword: u.HashedPassword,
+		IsChirpyRed:    u.IsChirpyRed,
 	}
 }
 

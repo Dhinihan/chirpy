@@ -17,17 +17,22 @@ import (
 var cfg *admin.ApiConfig
 
 func RegisterHandlers(c *admin.ApiConfig, sMux *http.ServeMux) {
+	cfg = c
+
 	sMux.HandleFunc("GET /api/healthz", handleHealthZ)
+
 	sMux.HandleFunc("POST /api/users", handleCreateUser)
 	sMux.HandleFunc("PUT /api/users", handleUpadateUser)
 	sMux.HandleFunc("POST /api/login", handleLogin)
 	sMux.HandleFunc("POST /api/refresh", handleRefreshToken)
 	sMux.HandleFunc("POST /api/revoke", handleRevokeToken)
+
 	sMux.HandleFunc("POST /api/chirps", handleCreateChirp)
 	sMux.HandleFunc("GET /api/chirps", handleGetAllChirps)
 	sMux.HandleFunc("GET /api/chirps/{chirpID}", handleGetChirp)
 	sMux.HandleFunc("DELETE /api/chirps/{chirpID}", handleDeleteChirp)
-	cfg = c
+
+	sMux.HandleFunc("POST /api/polka/webhooks", handlePolkaWebhooks)
 }
 
 func handleHealthZ(w http.ResponseWriter, req *http.Request) {
@@ -329,6 +334,44 @@ func handleRevokeToken(w http.ResponseWriter, req *http.Request) {
 			err,
 		)
 		return
+	}
+	w.WriteHeader(204)
+}
+
+func handlePolkaWebhooks(w http.ResponseWriter, req *http.Request) {
+	var postData struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserId uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+	if err := application.ExtractBody(w, req, &postData); err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	if postData.Event != "user.upgraded" {
+		w.WriteHeader(204)
+		return
+	}
+	rows, err := cfg.Db.UpdateUserSetChirpyRed(
+		req.Context(),
+		postData.Data.UserId,
+	)
+	if err != nil {
+		application.RespondWithError(
+			w,
+			500,
+			"Erro ao ativar chirpy red",
+			err,
+		)
+	}
+	if rows < 1 {
+		application.RespondWithError(
+			w,
+			404,
+			"Usuário não encontrado",
+			nil,
+		)
 	}
 	w.WriteHeader(204)
 }

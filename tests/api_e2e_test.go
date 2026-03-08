@@ -395,3 +395,20 @@ func (s *APITestSuite) TestRevokeRefreshToken() {
 	s.Equal(401, res2.Code)
 	s.NotContains(res2.Body.String(), `"token":`)
 }
+
+func (s *APITestSuite) TestActivateChirpyRed() {
+	u := s.generateAuthUser("paid@user.com")
+	s.False(u.IsChirpyRed)
+	bodyTemplate := `{
+	      	"event": "user.upgraded",
+		"data": { "user_id": "%s" }
+	}`
+	body := fmt.Sprintf(bodyTemplate, u.ID.String())
+	res := s.executeRequest("POST", "/api/polka/webhooks", body)
+	s.Equal(204, res.Code)
+	bodyTemplate2 := `{"email": "%s", "password": "%s"}`
+	body2 := fmt.Sprintf(bodyTemplate2, "em@il.com", "senha")
+	res2 := s.executeAuthRequest("PUT", "/api/users", body2, u.ID)
+	s.Equal(200, res2.Code)
+	s.Contains(res2.Body.String(), `"is_chirpy_red":true`)
+}
