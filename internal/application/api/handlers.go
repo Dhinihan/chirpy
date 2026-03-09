@@ -85,7 +85,14 @@ func handleCreateChirp(w http.ResponseWriter, req *http.Request) {
 }
 
 func handleGetAllChirps(w http.ResponseWriter, req *http.Request) {
-	found, err := cfg.Db.GetAllChirps(req.Context())
+	var found []database.Chirp
+	var err error
+	if author := req.URL.Query().Get("author_id"); author != "" {
+		aid, _ := uuid.Parse(author)
+		found, err = cfg.Db.GetChirpsByUser(req.Context(), aid)
+	} else {
+		found, err = cfg.Db.GetAllChirps(req.Context())
+	}
 	if err != nil {
 		application.RespondWithError(
 			w,
