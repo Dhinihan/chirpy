@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/Dhinihan/chirpy/internal/application"
@@ -101,6 +103,14 @@ func handleGetAllChirps(w http.ResponseWriter, req *http.Request) {
 			err,
 		)
 		return
+	}
+	srt := req.URL.Query().Get("sort")
+	if strings.ToUpper(srt) == "DESC" {
+		sort.Slice(found, func(a, b int) bool {
+			aValue := found[a].CreatedAt.Unix()
+			bValue := found[b].CreatedAt.Unix()
+			return aValue >= bValue
+		})
 	}
 	chirps := make([]chirp.Chirp, len(found))
 	for i, v := range found {
