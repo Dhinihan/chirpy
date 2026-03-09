@@ -83,7 +83,7 @@ func (s *APITestSuite) SetupSuite() {
 	}
 
 	s.mux = http.NewServeMux()
-	cfg := admin.NewApiConfig(s.queries, "segredo")
+	cfg := admin.NewApiConfig(s.queries, "segredo", "polka-key")
 	api.RegisterHandlers(cfg, s.mux)
 
 }
@@ -404,7 +404,15 @@ func (s *APITestSuite) TestActivateChirpyRed() {
 		"data": { "user_id": "%s" }
 	}`
 	body := fmt.Sprintf(bodyTemplate, u.ID.String())
-	res := s.executeRequest("POST", "/api/polka/webhooks", body)
+
+	req := httptest.NewRequest(
+		"POST",
+		"/api/polka/webhooks",
+		strings.NewReader(body),
+	)
+	req.Header.Set("Authorization", "ApiKey polka-key")
+	res := httptest.NewRecorder()
+	s.mux.ServeHTTP(res, req)
 	s.Equal(204, res.Code)
 	bodyTemplate2 := `{"email": "%s", "password": "%s"}`
 	body2 := fmt.Sprintf(bodyTemplate2, "em@il.com", "senha")

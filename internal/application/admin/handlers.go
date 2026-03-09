@@ -13,10 +13,11 @@ type ApiConfig struct {
 	fileserverHits atomic.Int32
 	Db             *database.Queries
 	JwtSecret      string
+	PolkaKey       string
 }
 
-func NewApiConfig(db *database.Queries, secret string) *ApiConfig {
-	return &ApiConfig{Db: db, JwtSecret: secret}
+func NewApiConfig(db *database.Queries, secret, polkaKey string) *ApiConfig {
+	return &ApiConfig{Db: db, JwtSecret: secret, PolkaKey: polkaKey}
 }
 
 func RegisterHandlers(cfg *ApiConfig, serverMux *http.ServeMux) {

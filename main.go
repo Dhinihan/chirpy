@@ -27,7 +27,8 @@ func main() {
 		fmt.Printf("Erro ao abrir conexão com o banco de dados:\n%s", err.Error())
 	}
 	secret := os.Getenv("JWT_SECRET")
-	cfg := admin.NewApiConfig(database.New(db), secret)
+	polkaKey := os.Getenv("POLKA_KEY")
+	cfg := admin.NewApiConfig(database.New(db), secret, polkaKey)
 
 	serverMux := http.NewServeMux()
 	serverMux.Handle(

@@ -339,6 +339,11 @@ func handleRevokeToken(w http.ResponseWriter, req *http.Request) {
 }
 
 func handlePolkaWebhooks(w http.ResponseWriter, req *http.Request) {
+	key, err := auth.GetAPIKey(req.Header)
+	if err != nil || key != cfg.PolkaKey {
+		application.RespondWithError(w, 401, "unauthorized", err)
+		return
+	}
 	var postData struct {
 		Event string `json:"event"`
 		Data  struct {
